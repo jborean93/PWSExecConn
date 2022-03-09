@@ -1,15 +1,18 @@
 using System;
-using System.Diagnostics;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
-using System.Text.Json;
+using System.Threading;
 
 namespace PWSExecConn;
 
-[Cmdlet(VerbsCommon.New, "PSExecSession")]
+[Cmdlet(VerbsCommon.New, "PSExecSession", DefaultParameterSetName = "RunAsCredential")]
 [OutputType(typeof(PSSession))]
 public sealed class NewPSExecSession : PSCmdlet
 {
+    private ManualResetEvent? _openEvent = null;
+    private PSExecConnectionInfo? _connInfo = null;
+    private Runspace? _runspace = null;
+
     [Parameter(
         Position = 0,
         Mandatory = true,
@@ -18,96 +21,108 @@ public sealed class NewPSExecSession : PSCmdlet
     public string[] ComputerName { get; set; } = Array.Empty<string>();
 
     [Parameter()]
-    public int Port { get; set; } = 22;
-
-    [Parameter()]
     public PSCredential? Credential { get; set; }
 
-    protected override void ProcessRecord()
+    [Parameter(
+        ParameterSetName = "RunAsCredential"
+    )]
+    public PSCredential? RunAsCredential { get; set; }
+
+    [Parameter(
+        ParameterSetName = "RunAsSystem"
+    )]
+    public SwitchParameter RunAsSystem { get; set; }
+
+    [Parameter()]
+    public string Executable { get; set; } = "pwsh";
+
+    [Parameter()]
+    public string Arguments { get; set; } = "-NoLogo -ServerMode";
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty]
+    public string Name { get; set; } = "";
+
+    protected override async void ProcessRecord()
     {
         foreach (string computer in ComputerName)
         {
             WriteVerbose($"Starting SSH connection to {computer}");
 
-            PSExecManifest manifest = new()
+            PSExecConnectionInfo connInfo = new PSExecConnectionInfo(
+                computer,
+                Credential,
+                0,
+                Executable,
+                Arguments,
+                RunAsCredential,
+                RunAsSystem);
+            _connInfo = connInfo;
+
+            Runspace runspace = RunspaceFactory.CreateRunspace(
+                connectionInfo: connInfo,
+                host: Host,
+                typeTable: TypeTable.LoadDefaultTypeFiles(),
+                applicationArguments: null,
+                name: Name);
+            _runspace = runspace;
+
+            using (_openEvent = new ManualResetEvent(false))
             {
-                Hostname = computer,
-                UserName = Credential?.UserName,
-                Password = Credential?.GetNetworkCredential().Password,
-                Executable = "pwsh",
-                Arguments = "-sshs -NoLogo",
-            };
+                runspace.StateChanged += HandleRunspaceStateChanged;
+                runspace.OpenAsync();
+                _openEvent?.WaitOne();
 
-            using Process proc = new Process();
-            proc.StartInfo = new()
-            {
-                FileName = "python",
-                Arguments = "/home/jborean/dev/pwsh-ssh-conn/psexec.py",
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                CreateNoWindow = true,
-            };
-            proc.OutputDataReceived += DataReceived;
-            proc.ErrorDataReceived += DataReceived;
-            proc.Start();
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
+                if (runspace.RunspaceStateInfo.State == RunspaceState.Broken)
+                {
+                    // Reason message here is most likely useless but it's better than nothing.
+                    ErrorRecord err = new(
+                        runspace.RunspaceStateInfo.Reason,
+                        "PSExecFailedConnection",
+                        ErrorCategory.ConnectionError,
+                        computer);
 
-            proc.StandardInput.AutoFlush = true;
-            proc.StandardInput.WriteLine(JsonSerializer.Serialize(manifest));
+                    WriteError(err);
+                    continue;
+                }
 
-            proc.WaitForExit();
+                WriteObject(PSSession.Create(
+                    runspace: runspace,
+                    transportName: "PSExec",
+                    psCmdlet: this));
+            }
+        }
+    }
 
-            /*
-        // Convert ConnectingTimeout value from seconds to milliseconds.
-        _connectionInfo = new NamedPipeInfo(
-            processId: ProcessId,
-            connectingTimeout: (ConnectingTimeout == Timeout.Infinite) ? Timeout.Infinite : ConnectingTimeout * 1000);
+    protected override void StopProcessing()
+    {
+        // FUTURE: Should somehow cancel the open process/kill it
+        SetOpenEvent();
+    }
 
-        _runspace = RunspaceFactory.CreateRunspace(
-            connectionInfo: _connectionInfo,
-            host: Host,
-            typeTable: TypeTable.LoadDefaultTypeFiles(),
-            applicationArguments: null,
-            name: Name);
+    private void HandleRunspaceStateChanged(object? source, RunspaceStateEventArgs stateEventArgs)
+    {
+        switch (stateEventArgs.RunspaceStateInfo.State)
+        {
+            case RunspaceState.Opened:
+            case RunspaceState.Closed:
+            case RunspaceState.Broken:
+                if (_runspace != null)
+                {
+                    _runspace.StateChanged -= HandleRunspaceStateChanged;
+                }
 
-        _openAsync = new ManualResetEvent(false);
-        _runspace.StateChanged += HandleRunspaceStateChanged;
+                SetOpenEvent();
+                break;
+        }
+    }
 
+    private void SetOpenEvent()
+    {
         try
         {
-            _runspace.OpenAsync();
-            _openAsync.WaitOne();
-
-            WriteObject(
-                PSSession.Create(
-                    runspace: _runspace,
-                    transportName: "PSNPTest",
-                    psCmdlet: this));
+            _openEvent?.Set();
         }
-        finally
-        {
-            _openAsync.Dispose();
-        }
-            */
-        }
+        catch (ObjectDisposedException) {}
     }
-
-    private void DataReceived(object? sender, DataReceivedEventArgs args)
-    {
-        Console.WriteLine(args.Data);
-    }
-}
-
-
-internal class PSExecManifest
-{
-    public string Hostname { get; set; } = "";
-    public string? UserName { get; set; }
-    public string? Password { get; set; }
-    public string Executable { get; set; } = "";
-    public string Arguments { get; set; } = "";
 }

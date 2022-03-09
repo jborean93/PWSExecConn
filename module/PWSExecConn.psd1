@@ -11,7 +11,7 @@
 @{
 
     # Script module or binary module file associated with this manifest.
-    RootModule        = 'bin/net6.0/PWSExecConn.dll'
+    RootModule        = 'bin/net7.0/PWSExecConn.dll'
 
     # Version number of this module.
     ModuleVersion     = '0.1.0'

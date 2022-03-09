@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net7.0</TargetFrameworks>
     <AssemblyName>PWSExecConn</AssemblyName>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -9,12 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="System.Management.Automation" Version="7.*" PrivateAssets="all">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>../../PowerShell/debug/System.Management.Automation.dll</HintPath>
-    </Reference>
     <!--
+    Use this instead of the manual dll reference once pwsh 7.3.0 is available
     <PackageReference Include="System.Management.Automation" Version="7.3.0" PrivateAssets="all" />
     -->
+    <Reference Include="System.Management.Automation" Version="7.*" PrivateAssets="all">
+      <HintPath>../../PowerShell/debug/System.Management.Automation.dll</HintPath>
+    </Reference>
+    <PackageReference Include="System.Text.Json" Version="6.0.2" PrivateAssets="all"/>
   </ItemGroup>
 </Project>

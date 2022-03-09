@@ -19,7 +19,7 @@
         },
         {
             "label": "update docs",
-            "command": "pwsh",
+            "command": "${workspaceRoot}/../PowerShell/debug/pwsh",
             "type": "shell",
             "args": [
                 "-Command",

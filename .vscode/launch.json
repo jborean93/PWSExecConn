@@ -8,7 +8,7 @@
             "name": "PowerShell launch",
             "type": "coreclr",
             "request": "launch",
-            "program": "/home/jborean/dev/PowerShell/debug/pwsh",
+            "program": "${workspaceRoot}/../PowerShell/debug/pwsh",
             "args": [
                 "-NoExit",
                 "-NoProfile",
@@ -17,10 +17,7 @@
             ],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
-            "console": "externalTerminal",
-            "env": {
-                "PYTHONPATH": "/home/jborean/.pyenv/versions/psexec-310/lib/python3.10/site-packages"
-            }
+            "console": "externalTerminal"
         },
         {
             "name": "PowerShell Launch Current File",
