@@ -221,11 +221,12 @@ A PSSession for each host connected to.
 
 ## NOTES
 This is very experimental with little error handling and input validation.
-The exchange between the pwsh process and spawning the Python `pypsexec` process is also quite rudimentary and is most likely failures will be swallowed without detailed error messages.
+The exchange between the pwsh process and spawning the Python `pypsexec` process is also quite rudimentary.
+It is likely failures will be swallowed and the error messages returned back to the caller being generic messages.
 
 Due to time constraints the PSExec handler is using a Python library that is spawned by the custom transport code.
 This requires a working `python` interpreter to be present and that interpreter must be able to resolve the `pypsexec` process.
-If Kerberos auth if required then `pip install smbprotocol[kerberos]` must also be run to install the optional Kerberos libraries required by `pypsexec`.
+If Kerberos auth is required then `pip install smbprotocol[kerberos]` must also be run to install the optional Kerberos libraries required by `pypsexec`.
 
 ## RELATED LINKS
 
